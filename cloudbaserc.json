@@ -46,7 +46,7 @@
     "hooks": {
       "preDeploy": {
         "type": "execCommand",
-        "commands": ["yarn"]
+        "commands": ["yarn", "npm run build"]
       }
     }
   }
