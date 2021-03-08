@@ -1,11 +1,20 @@
 import { Callback, Context } from "aws-lambda";
-import * as aws from "aws-sdk";
 import * as LRU from "lru-cache";
-import * as zlib from "zlib";
+import * as tcb from "@cloudbase/node-sdk";
 
-import { VERSION } from "../config";
+const VERSION = 2;
 
 import parseDependencies from "./dependencies/parse-dependencies";
+
+const currentEnv = tcb.SYMBOL_CURRENT_ENV;
+
+//云函数下指定环境为当前的执行环境
+const app = tcb.init({
+  env: currentEnv,
+});
+const db = app.database({
+  env: currentEnv,
+});
 
 const errorCache: LRU.Cache<string, string> = LRU({
   max: 1024,
@@ -46,119 +55,37 @@ const defaultHeaders = {
 
 const CACHE_TIME = 60 * 60 * 24; // A day caching
 
-const lambda = new aws.Lambda({
-  region: "eu-west-1",
-});
-
-const s3 = new aws.S3();
 const { BUCKET_NAME } = process.env;
 
-function getFileFromS3(
-  keyPath: string,
-): Promise<aws.S3.GetObjectOutput | null> {
-  return new Promise((resolve, reject) => {
-    if (!BUCKET_NAME) {
-      reject("No BUCKET_NAME provided");
-      return;
-    }
-
-    s3.getObject(
-      {
-        Bucket: BUCKET_NAME,
-        Key: keyPath,
-      },
-      (err, packageData) => {
-        if (err && err.name !== "AccessDenied") {
-          console.error(err);
-          reject(err);
-          return;
-        }
-
-        resolve(packageData);
-      },
-    );
-  });
+async function getFileFromStorage(keyPath: string): Promise<any> {
+  try {
+    return (await db.collection("code-sandbox-packager-db").doc(keyPath).get())
+      .data[0];
+  } catch (e) {
+    console.log(`getFileFromStorage error`, keyPath, e);
+    return null;
+  }
 }
 
-function saveFileToS3(
-  keyPath: string,
-  content: string,
-  contentType: string = "application/json",
-): Promise<aws.S3.PutObjectOutput> {
-  return new Promise((resolve, reject) => {
-    if (!BUCKET_NAME) {
-      reject("No BUCKET_NAME provided");
-      return;
-    }
-
-    s3.putObject(
-      {
-        Bucket: BUCKET_NAME,
-        Key: keyPath, // don't allow slashes
-        Body: zlib.gzipSync(content),
-        ContentType: contentType,
-        CacheControl: "public, max-age=31536000",
-        ContentEncoding: "gzip",
-      },
-      (err, response) => {
-        if (err) {
-          console.error(err);
-          reject(err);
-          return;
-        }
-
-        resolve(response);
-      },
-    );
-  });
-}
-
-function getS3BundlePath(dependencies: IDependencies) {
-  return (
-    `v${VERSION}/combinations/` +
-    Object.keys(dependencies)
-      .sort()
-      .map(
-        // Paths starting with slashes don't work with cloudfront, even escaped. So we remove the slashes
-        (dep) =>
-          `${encodeURIComponent(dep.replace("/", "-").replace("@", ""))}@${
-            dependencies[dep]
-          }`,
-      )
-      .join("+") +
-    ".json"
-  );
-}
-
-function generateDependency(
+async function generateDependency(
   name: string,
   version: string,
 ): Promise<{ error: string } | ILambdaResponse | null> {
-  return new Promise((resolve, reject) => {
-    lambda.invoke(
-      {
-        FunctionName: `codesandbox-packager-v2-${process.env.SERVERLESS_STAGE}-packager`,
-        Payload: JSON.stringify({
-          name,
-          version,
-        }),
+  try {
+    const res = await app.callFunction({
+      name: "codesandbox-packager-v2-packager",
+      data: {
+        name,
+        version,
       },
-      (error, data) => {
-        if (error) {
-          error.message = `Error while packaging ${name}@${version}: ${error.message}`;
+    });
 
-          reject(error);
-          return;
-        }
+    return res.result;
+  } catch (error) {
+    error.message = `Error while packaging ${name}@${version}: ${error.message}`;
 
-        if (typeof data.Payload === "string") {
-          resolve(JSON.parse(data.Payload));
-        } else {
-          resolve(null);
-        }
-      },
-    );
-  });
+    throw error;
+  }
 }
 
 function getResponse(bundlePath: string) {
@@ -183,23 +110,23 @@ export async function http(event: any, context: Context, cb: Callback) {
       return cb(undefined, "Lambda is warm!");
     }
 
-    const { packages } = event.pathParameters;
+    console.log(event, event.path);
+
+    const packages = event.path.slice(1);
     const escapedPackages = decodeURIComponent(packages);
     const dependencies = await parseDependencies(escapedPackages);
 
     const receivedData: ILambdaResponse[] = [];
 
-    if (!BUCKET_NAME) {
-      throw new Error("No BUCKET_NAME provided");
-    }
-
     console.log("Packaging '" + escapedPackages + "'");
 
     const depName = Object.keys(dependencies)[0];
     const bundlePath = `v${VERSION}/packages/${depName}/${dependencies[depName]}.json`;
-    const bundle = await getFileFromS3(bundlePath);
+    const bundle = await getFileFromStorage(bundlePath);
 
-    if (bundle && bundle.Body) {
+    console.log(bundle);
+
+    if (bundle) {
       cb(undefined, getResponse(bundlePath));
       return;
     }
@@ -207,13 +134,9 @@ export async function http(event: any, context: Context, cb: Callback) {
     await Promise.all(
       Object.keys(dependencies).map(async (depName) => {
         const depPath = `v${VERSION}/packages/${depName}/${dependencies[depName]}.json`;
-        const s3Object = await getFileFromS3(depPath);
+        const result = await getFileFromStorage(depPath);
 
-        if (s3Object && s3Object.Body != null) {
-          const result = JSON.parse(
-            s3Object.Body.toString(),
-          ) as ILambdaResponse;
-
+        if (result) {
           receivedData.push(result);
         } else {
           const key = depName + dependencies[depName];

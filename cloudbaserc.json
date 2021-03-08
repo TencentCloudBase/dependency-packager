@@ -1,0 +1,53 @@
+{
+  "envId": "{{env.ENV_ID}}",
+  "version": "2.0",
+  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
+  "framework": {
+    "name": "codesandbox-packager",
+    "plugins": {
+      "function": {
+        "use": "@cloudbase/framework-plugin-function",
+        "inputs": {
+          "functionRootPath": "./dist",
+          "functions": [
+            {
+              "name": "codesandbox-packager-v2-packager",
+              "functionDistPath": "./packager",
+              "handler": "index.call",
+              "envVariables": {}
+            },
+            {
+              "name": "codesandbox-packager-v2-api",
+              "functionDistPath": "./api",
+              "handler": "index.http"
+            }
+          ],
+          "functionDefaultConfig": {
+            "runtime": "Nodejs10.15",
+            "memorySize": 1024,
+            "timeout": 300,
+            "installDependency": true,
+            "envVariables": {
+              "IN_LAMBDA": "true"
+            }
+          },
+          "servicePaths": {
+            "codesandbox-packager-v2-api": "/packages"
+          }
+        }
+      },
+      "db": {
+        "use": "@cloudbase/framework-plugin-database",
+        "inputs": {
+          "collections": [{ "collectionName": "code-sandbox-packager-db" }]
+        }
+      }
+    },
+    "hooks": {
+      "preDeploy": {
+        "type": "execCommand",
+        "commands": ["yarn"]
+      }
+    }
+  }
+}

@@ -15,12 +15,10 @@ export default function installDependencies(
       `mkdir -p ${packagePath} && cd ${packagePath} && HOME=/tmp node ${join(
         __dirname,
         "../../../node_modules",
-        "yarn",
-        "lib",
-        "cli",
-      )} add ${depString} ${
+        "npm",
+      )} install ${depString} ${
         spec.type === "git" ? "" : "--ignore-scripts"
-      } --no-lockfile --non-interactive --no-bin-links --ignore-engines --skip-integrity-check --cache-folder ./`,
+      }  --no-bin-links`,
       (err, stdout, stderr) => {
         if (err) {
           reject(

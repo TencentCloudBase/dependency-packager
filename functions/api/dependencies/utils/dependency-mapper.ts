@@ -13,7 +13,7 @@ async function getAbsoluteVersions(dependencies: IDependencies) {
   // First build an array with name and absolute version, allows parallel
   // fetching of version numbers
   const absoluteDependencies = await Promise.all(
-    dependencyNames.map(async depName => {
+    dependencyNames.map(async (depName) => {
       const depString = `${depName}@${dependencies[depName]}`;
 
       const spec = npa(depString);
@@ -23,7 +23,9 @@ async function getAbsoluteVersions(dependencies: IDependencies) {
       }
 
       try {
-        const manifest = await pacote.manifest(depString);
+        const manifest = await pacote.manifest(depString, {
+          registry: "https://registry.npm.taobao.org",
+        });
 
         const absoluteVersion = manifest.version;
 

@@ -1,6 +1,7 @@
 {
   "compileOnSave": true,
   "compilerOptions": {
+    "skipLibCheck": true,
     /* Basic Options */
     "target": "es6" /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', or 'ESNEXT'. */,
     "module": "commonjs" /* Specify module code generation: 'commonjs', 'amd', 'system', 'umd' or 'es2015'. */,
@@ -49,6 +50,6 @@
     // "emitDecoratorMetadata": true,         /* Enables experimental support for emitting type metadata for decorators. */
     "watch": false
   },
-  "include": ["functions/**/*.ts", "typings/**/*.d.ts"],
+  "include": ["functions/**/*", "typings/**/*.d.ts"],
   "exclude": ["node_modules", "__tests__", "build", "**/*.test.ts", "temp"]
 }

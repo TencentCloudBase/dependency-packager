@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "LOCAL=true nodemon dist/packager",
     "build": "rimraf ./dist && tsc",
-    "postbuild": "cpy --cwd=. --parents 'package.json' ./dist/api && cpy --cwd=. --parents 'package.json' ./dist/packager",
-    "deploy": "npm run build && cloudbase framework deploy",
+    "deploy:prod": "npm run build && serverless deploy -s prod",
+    "deploy:dev": "npm run build && serverless deploy -s dev",
     "test": "jest",
     "test:watch": "jest --watch"
   },
@@ -61,7 +61,6 @@
     "@types/semver": "^5.4.0",
     "@types/string-hash": "^1.1.1",
     "aws-sdk": "^2.656.0",
-    "cpy-cli": "^3.1.1",
     "eslint": "^4.7.2",
     "eslint-config-prettier": "^2.6.0",
     "express": "^4.16.1",

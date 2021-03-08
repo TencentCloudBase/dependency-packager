@@ -15,8 +15,8 @@ export default function exportRequires(code: string) {
 
   const requires: string[] = [];
 
-  walk.simple(ast, {
-    ImportDeclaration(node: meriyah.ESTree.ImportDeclaration) {
+  walk.simple(ast as any, {
+    ImportDeclaration(node: any) {
       isModule = true;
       // Seems like the typings are wrong in the library
       const source = node.source as meriyah.ESTree.Literal;
@@ -24,7 +24,7 @@ export default function exportRequires(code: string) {
         requires.push(source.value);
       }
     },
-    ImportExpression(node: meriyah.ESTree.ImportExpression) {
+    ImportExpression(node: any) {
       isModule = true;
       // Seems like the typings are wrong in the library
       const source = node.source as meriyah.ESTree.Literal;
@@ -32,21 +32,21 @@ export default function exportRequires(code: string) {
         requires.push(source.value);
       }
     },
-    ExportNamedDeclaration(node: meriyah.ESTree.ExportNamedDeclaration) {
+    ExportNamedDeclaration(node: any) {
       isModule = true;
       const source = node.source;
       if (source && typeof source.value === "string") {
         requires.push(source.value);
       }
     },
-    ExportAllDeclaration(node: meriyah.ESTree.ExportAllDeclaration) {
+    ExportAllDeclaration(node: any) {
       isModule = true;
       const source = node.source;
       if (source && typeof source.value === "string") {
         requires.push(source.value);
       }
     },
-    CallExpression(node: meriyah.ESTree.CallExpression) {
+    CallExpression(node: any) {
       if (
         /* require() */ (node.callee.type === "Identifier" &&
           node.callee.name === "require") ||

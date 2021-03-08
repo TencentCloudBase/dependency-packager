@@ -1,11 +1,10 @@
 import { Callback, Context } from "aws-lambda";
-import { S3 } from "aws-sdk";
+import * as tcb from "@cloudbase/node-sdk";
 
 import { fs } from "mz";
 import * as path from "path";
 import * as Raven from "raven";
 import * as rimraf from "rimraf";
-import * as zlib from "zlib";
 import fetch from "node-fetch";
 
 import findDependencyDependencies from "./dependencies/find-dependency-dependencies";
@@ -16,19 +15,26 @@ import findRequires, { IFileData } from "./packages/find-requires";
 
 import getHash from "./utils/get-hash";
 
-import { VERSION } from "../config";
-import env from "./config.secret";
+const VERSION = 2;
 import resolve = require("resolve");
 import { packageFilter } from "./utils/resolver";
 
 const { BUCKET_NAME } = process.env;
-const SAVE_TO_S3 = !process.env.DISABLE_CACHING;
+const SAVE_TO_STORAGE = !process.env.DISABLE_CACHING;
 
-if (env.SENTRY_URL) {
-  Raven.config(env.SENTRY_URL!).install();
+if (process.env.SENTRY_URL) {
+  Raven.config(process.env.SENTRY_URL!).install();
 }
 
-const s3 = new S3();
+const currentEnv = tcb.SYMBOL_CURRENT_ENV;
+
+//云函数下指定环境为当前的执行环境
+const app = tcb.init({
+  env: currentEnv,
+});
+const db = app.database({
+  env: currentEnv,
+});
 
 /**
  * Remove a file from the content
@@ -50,32 +56,21 @@ function deleteHardcodedRequires(data: IFileData, deletePath: string) {
   }
 }
 
-function saveToS3(
+async function saveToStorage(
   dependency: { name: string; version: string },
   response: object,
 ) {
-  if (!BUCKET_NAME) {
-    throw new Error("No bucket has been specified");
-  }
-
-  console.log(`Saving ${dependency} to S3`);
-  s3.putObject(
-    {
-      Body: zlib.gzipSync(JSON.stringify(response)),
-      Bucket: BUCKET_NAME,
-      Key: `v${VERSION}/packages/${dependency.name}/${dependency.version}.json`,
-      ACL: "public-read",
-      ContentType: "application/json",
-      CacheControl: "public, max-age=31536000",
-      ContentEncoding: "gzip",
-    },
-    (err) => {
-      if (err) {
-        console.log(err);
-        throw err;
-      }
-    },
-  );
+  console.log(`Saving ${dependency} to Storage`);
+  const keyPath = `v${VERSION}/packages/${dependency.name}/${dependency.version}.json`;
+  const fileID = (
+    await app.uploadFile({
+      cloudPath: keyPath,
+      fileContent: JSON.stringify(response),
+    })
+  ).fileID;
+  await db.collection("code-sandbox-packager-db").doc(keyPath).set({
+    data: { fileID },
+  });
 }
 
 async function getContents(
@@ -233,7 +228,7 @@ export async function call(event: any, context: Context, cb: Callback) {
     };
 
     if (process.env.IN_LAMBDA) {
-      saveToS3(dependency, response);
+      saveToStorage(dependency, response);
     }
 
     // Cleanup
@@ -273,7 +268,7 @@ export async function call(event: any, context: Context, cb: Callback) {
         }
 
         if (process.env.IN_LAMBDA) {
-          saveToS3(dependency, responseFromFly);
+          saveToStorage(dependency, responseFromFly);
         }
 
         cb(undefined, responseFromFly);
