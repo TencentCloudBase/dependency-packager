@@ -43,5 +43,9 @@ curl -X POST https://apps-6g88vpqqf9f70e7b-1259727701.ap-shanghai.service.tcloud
 
 # {"url":"v2/packages/react/16.14.0.json"}
 
+
 # Then you can download this json from tcb storage.
+https://${TCB_BUCKET_URL}.tcb.qcloud.la/v2/packages/react/16.14.0.json
+
+# https://6170-apps-6g88vpqqf9f70e7b-1259727701.tcb.qcloud.la/v2/packages/react/16.14.0.json
 ```
